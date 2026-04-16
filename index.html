@@ -1,0 +1,442 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>果味轩质量检测系统</title>
+    <link rel="stylesheet" href="https://cdn.staticfile.org/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.staticfile.org/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        * {margin: 0; padding: 0; box-sizing: border-box; font-family: system-ui, sans-serif;}
+        body {background: #f0fdf4; padding-bottom: 60px;}
+        .container {max-width: 900px; margin: 0 auto; padding: 15px;}
+        .card {background: #fff; border-radius: 16px; padding: 20px; margin-bottom: 16px; box-shadow: 0 2px 12px rgba(0,0,0,0.06);}
+        .title {font-size: 18px; font-weight: bold; margin-bottom: 14px; color: #15803d;}
+        .grid {display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 12px;}
+        input, select {width: 100%; padding: 10px; border: 1px solid #e28f0; border-radius: 8px; font-size: 14px;}
+        .btn {background: #16a34a; color: white; border: none; padding: 12px; border-radius: 10px; width: 100%; font-weight: bold; margin-top: 8px; cursor: pointer;}
+        .btn:hover {background: #15803d;}
+        .btn-outline {background: transparent; border: 1px solid #16a34a; color: #16a34a;}
+        .btn-red {background: #dc2626;}
+        table {width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12px;}
+        th,td {border: 1px solid #eee; padding: 6px; text-align: center;}
+        th {background: #f8fafc; color: #166534; font-weight: 600;}
+        .table-wrap {overflow-x: auto;}
+        .preview img {max-height: 80px; border-radius: 8px; margin-top: 8px; object-fit: cover;}
+        .tips {font-size: 12px; color: #16a34a; margin-bottom: 10px;}
+        .user-info {font-size: 14px; color: #4b4b4b; margin-bottom: 10px;}
+        .status {font-size: 12px; color: #16a34a; margin-bottom: 10px;}
+        .print-area {display: none;}
+        .modal {display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:999;}
+        .modal-body {background:white; margin:30% auto; padding:20px; border-radius:12px; width:90%; max-width:360px;}
+
+        /* 管理员今日质检面板样式 */
+        .today-panel {
+            background: #fffbeb;
+            border-left: 4px solid #f59e0b;
+            padding: 12px 16px;
+            border-radius: 8px;
+            margin-bottom: 16px;
+            font-size: 14px;
+        }
+        .today-title {
+            font-weight: bold;
+            color: #92400e;
+            margin-bottom: 6px;
+        }
+        .today-item {
+            margin: 4px 0;
+            color: #78350f;
+        }
+
+        @media print {
+            body * {visibility: hidden;}
+            .print-area, .print-area * {visibility: visible;}
+            .print-area {position: absolute; left:0; top:0; width:100%; padding:10px;}
+        }
+        @media (max-width:768px) {
+            .grid {grid-template-columns: repeat(2,1fr);}
+        }
+    </style>
+</head>
+<body>
+
+<div class="modal" id="pwdModal">
+    <div class="modal-body">
+        <h3 class="title">修改密码</h3>
+        <input type="password" id="oldPwd" placeholder="原密码" style="margin-bottom:8px">
+        <input type="password" id="newPwd" placeholder="新密码" style="margin-bottom:8px">
+        <input type="password" id="cfmPwd" placeholder="确认新密码" style="margin-bottom:8px">
+        <button class="btn" onclick="doChangePwd()">确认修改</button>
+        <button class="btn btn-outline" onclick="closePwdModal()">取消</button>
+    </div>
+</div>
+
+<div class="container">
+    <div class="card">
+        <h2 class="title"><i class="fa fa-apple"></i> 果味轩质量检测系统</h2>
+        <div class="user-info" id="userInfo">未登录</div>
+        <div id="todayRecordPanel"></div> <!-- 管理员今日质检面板 -->
+        <div class="status" id="syncStatus">✅ 云同步已就绪</div>
+        <button class="btn btn-outline" onclick="openPwdModal()" style="margin-top:4px;">修改密码</button>
+    </div>
+
+    <div class="card" id="loginCard">
+        <h3 class="title">用户登录</h3>
+        <input type="text" id="loginUser" placeholder="用户名" style="margin-bottom:8px">
+        <input type="password" id="loginPwd" placeholder="密码" style="margin-bottom:8px">
+        <button class="btn" onclick="login()">登录</button>
+        <button class="btn btn-outline" onclick="register()">注册</button>
+    </div>
+
+    <div class="card" id="mainCard" style="display:none">
+        <h3 class="title">检测录入</h3>
+        <div class="tips">数据自动云同步 · 多设备实时互通</div>
+        <div class="grid">
+            <div><label>水果名称</label><input id="fruitName" placeholder="手动输入"></div>
+            <div><label>检测日期</label><input type="date" id="checkDate"></div>
+            <div><label>抽查数量</label><input id="checkNum" type="number" placeholder="抽查数量"></div>
+
+            <div><label>生产日期</label><input type="date" id="produceDate"></div>
+            <div><label>保质期(天)</label><input id="shelfLife" type="number" placeholder="天数"></div>
+
+            <div><label>糖度</label><input id="sugar" type="number" step="0.1" placeholder="糖度值"></div>
+            <div><label>新鲜度</label>
+                <select id="freshness">
+                    <option>优</option><option>良</option><option>中</option><option>差</option>
+                </select>
+            </div>
+            <div><label>口感</label>
+                <select id="taste">
+                    <option>优</option><option>良</option><option>中</option><option>差</option>
+                </select>
+            </div>
+            <div><label>果型</label>
+                <select id="fruitShape">
+                    <option>优</option><option>良</option><option>中</option><option>差</option>
+                </select>
+            </div>
+            <div><label>皮重/kg</label><input id="peelWeight" type="number" step="0.01" placeholder="皮重"></div>
+            <div><label>净重/kg</label><input id="netWeight" type="number" step="0.01" placeholder="净重"></div>
+            <div><label>质量等级</label>
+                <select id="level">
+                    <option>优</option><option>良</option><option>中</option><option>差</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="grid" style="grid-template-columns: 1fr;">
+            <div>
+                <label>现场图片</label>
+                <input type="file" id="imgFile" accept="image/*">
+                <div class="preview" id="imgPreview"></div>
+            </div>
+        </div>
+
+        <button class="btn" onclick="saveToCloud()">✅ 保存并云同步</button>
+        <button class="btn btn-outline" onclick="printRecord()">🖨️ 打印记录</button>
+        <button class="btn btn-red" id="exportAllBtn" style="display:none" onclick="exportAllExcel()">📊 管理员导出全部Excel</button>
+    </div>
+
+    <div class="card" id="listCard" style="display:none">
+        <h3 class="title" id="listTitle">我的检测记录</h3>
+        <div style="height: 380px; overflow-y: auto;">
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>水果</th><th>日期</th><th>抽查数</th>
+                            <th>生产日期</th><th>保质期(天)</th>
+                            <th>糖度</th><th>新鲜度</th><th>口感</th><th>果型</th>
+                            <th>皮重</th><th>净重</th><th>等级</th><th>检测人</th>
+                        </tr>
+                    </thead>
+                    <tbody id="dataList"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="print-area" id="printArea"></div>
+
+<script>
+const API = "https://api.jsonbin.io/v3/b/67e1d2ad7c65e1702dacd237";
+const API_KEY = "$2a$10$Qm8kLdXk7w0Rk8kH1kLkJZ789";
+
+let currentUser = null;
+let isAdmin = false;
+let allData = [];
+
+imgFile.onchange = () => {
+    const url = URL.createObjectURL(imgFile.files[0]);
+    imgPreview.innerHTML = `<img src="${url}">`;
+};
+
+window.onload = () => {
+    checkDate.value = new Date().toISOString().split("T")[0];
+};
+
+// ========== 登录 ==========
+function login() {
+    let user = loginUser.value.trim();
+    let pwd = loginPwd.value.trim();
+    if (!user || !pwd) {
+        alert("请输入账号密码");
+        return;
+    }
+
+    let users = JSON.parse(localStorage.getItem("users") || "[]");
+    let target = users.find(u => u.user === user && u.pwd === pwd);
+
+    if (user === "admin" && pwd === "admin123") {
+        currentUser = "admin";
+        isAdmin = true;
+    } else if (!target) {
+        alert("账号或密码错误");
+        return;
+    } else {
+        currentUser = user;
+        isAdmin = false;
+    }
+
+    loginCard.style.display = "none";
+    mainCard.style.display = "block";
+    listCard.style.display = "block";
+    userInfo.innerText = `当前用户：${currentUser} ${isAdmin ? '【管理员】' : ''}`;
+
+    if (isAdmin) {
+        exportAllBtn.style.display = "block";
+        listTitle.innerText = "全部用户检测数据（管理员）";
+    } else {
+        listTitle.innerText = "我的检测记录";
+    }
+    loadFromCloud();
+}
+
+// ========== 注册 ==========
+function register() {
+    let user = loginUser.value.trim();
+    let pwd = loginPwd.value.trim();
+    if (!user || !pwd) {
+        alert("请输入账号密码");
+        return;
+    }
+    if (user === "admin") {
+        alert("该用户名不可用");
+        return;
+    }
+    let users = JSON.parse(localStorage.getItem("users") || "[]");
+    if (users.some(u => u.user === user)) {
+        alert("用户名已存在");
+        return;
+    }
+    users.push({ user, pwd });
+    localStorage.setItem("users", JSON.stringify(users));
+    alert("注册成功！请登录");
+}
+
+// ========== 修改密码 ==========
+function openPwdModal() {
+    if (!currentUser) {
+        alert("请先登录");
+        return;
+    }
+    pwdModal.style.display = "block";
+    oldPwd.value = newPwd.value = cfmPwd.value = "";
+}
+function closePwdModal() {
+    pwdModal.style.display = "none";
+}
+function doChangePwd() {
+    let old = oldPwd.value.trim();
+    let newP = newPwd.value.trim();
+    let cfm = cfmPwd.value.trim();
+    if (!old || !newP || !cfm) {
+        alert("请填写完整");
+        return;
+    }
+    if (newP !== cfm) {
+        alert("两次新密码不一致");
+        return;
+    }
+    if (old === newP) {
+        alert("新密码不能与原密码相同");
+        return;
+    }
+    if (isAdmin) {
+        alert("管理员不支持修改密码");
+        closePwdModal();
+        return;
+    }
+    let users = JSON.parse(localStorage.getItem("users") || "[]");
+    let idx = users.findIndex(u => u.user === currentUser && u.pwd === old);
+    if (idx === -1) {
+        alert("原密码错误");
+        return;
+    }
+    users[idx].pwd = newP;
+    localStorage.setItem("users", JSON.stringify(users));
+    alert("修改密码成功！请重新登录");
+    closePwdModal();
+    location.reload();
+}
+
+// ========== 云保存 ==========
+function saveToCloud() {
+    if (!currentUser) {
+        alert("请先登录");
+        return;
+    }
+    let data = {
+        fruit: fruitName.value || "-",
+        date: checkDate.value,
+        checkNum: checkNum.value || "-",
+        produceDate: produceDate.value || "-",
+        shelfLife: shelfLife.value || "-",
+        sugar: sugar.value || "-",
+        freshness: freshness.value,
+        taste: taste.value,
+        fruitShape: fruitShape.value,
+        peelWeight: peelWeight.value || "-",
+        netWeight: netWeight.value || "-",
+        level: level.value,
+        user: currentUser,
+        time: new Date().toLocaleString()
+    };
+    fetch(API, {
+        method: "GET",
+        headers: { "X-Access-Key": API_KEY }
+    }).then(res => res.json())
+      .then(res => {
+          let list = res.record || [];
+          list.unshift(data);
+          fetch(API, {
+              method: "PUT",
+              headers: {
+                  "Content-Type": "application/json",
+                  "X-Access-Key": API_KEY
+              },
+              body: JSON.stringify(list)
+          }).then(() => {
+              alert("✅ 保存并同步成功！");
+              loadFromCloud();
+          });
+      });
+}
+
+// ========== 加载数据 + 显示管理员今日质检 ==========
+function loadFromCloud() {
+    fetch(API, {
+        headers: { "X-Access-Key": API_KEY }
+    }).then(res => res.json())
+      .then(res => {
+          allData = res.record || [];
+          renderList();
+          showTodayRecordForAdmin(); // 管理员显示今日质检
+      });
+}
+
+function renderList() {
+    let showData = isAdmin ? allData : allData.filter(item => item.user === currentUser);
+    let html = "";
+    showData.forEach(item => {
+        html += `<tr>
+            <td>${item.fruit}</td>
+            <td>${item.date}</td>
+            <td>${item.checkNum || "-"}</td>
+            <td>${item.produceDate || "-"}</td>
+            <td>${item.shelfLife || "-"}</td>
+            <td>${item.sugar || "-"}</td>
+            <td>${item.freshness || "-"}</td>
+            <td>${item.taste || "-"}</td>
+            <td>${item.fruitShape || "-"}</td>
+            <td>${item.peelWeight || "-"}</td>
+            <td>${item.netWeight || "-"}</td>
+            <td>${item.level || "-"}</td>
+            <td>${item.user || "-"}</td>
+        </tr>`;
+    });
+    dataList.innerHTML = html || '<tr><td colspan="13">暂无数据</td></tr>';
+    syncStatus.innerText = "✅ 已同步最新数据";
+}
+
+// ========== 【新增】管理员显示今日质检记录 ==========
+function showTodayRecordForAdmin() {
+    if (!isAdmin) {
+        todayRecordPanel.innerHTML = "";
+        return;
+    }
+
+    let today = new Date().toISOString().split("T")[0];
+    let todayList = allData.filter(item => item.date === today);
+
+    let html = `
+    <div class="today-panel">
+        <div class="today-title">📊 今日质检统计（${today}）</div>
+        <div class="today-item">今日总质检条数：${todayList.length} 条</div>
+    </div>`;
+
+    todayRecordPanel.innerHTML = html;
+}
+
+// ========== 导出Excel ==========
+function exportAllExcel() {
+    if (!isAdmin) return;
+    let exp = allData.map(i => ({
+        水果: i.fruit,
+        检测日期: i.date,
+        抽查数量: i.checkNum || "-",
+        生产日期: i.produceDate || "-",
+        保质期_天: i.shelfLife || "-",
+        糖度: i.sugar || "-",
+        新鲜度: i.freshness || "-",
+        口感: i.taste || "-",
+        果型: i.fruitShape || "-",
+        皮重_kg: i.peelWeight || "-",
+        净重_kg: i.netWeight || "-",
+        质量等级: i.level || "-",
+        检测人: i.user || "-"
+    }));
+    let ws = XLSX.utils.json_to_sheet(exp);
+    let wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "全部检测数据");
+    XLSX.writeFile(wb, "果味轩_全部检测数据.xlsx");
+}
+
+// ========== 打印 ==========
+function printRecord() {
+    let data = isAdmin ? allData : allData.filter(i => i.user === currentUser);
+    let html = `<h2 style="text-align:center">果味轩质量检测记录表</h2>
+    <p style="text-align:center">打印时间：${new Date().toLocaleString()}</p>
+    <table border="1" width="100%" style="border-collapse:collapse;font-size:10px">
+    <tr>
+        <th>水果</th><th>日期</th><th>抽查数</th>
+        <th>生产日期</th><th>保质期</th>
+        <th>糖度</th><th>新鲜度</th><th>口感</th><th>果型</th>
+        <th>皮重</th><th>净重</th><th>等级</th><th>检测人</th>
+    </tr>`;
+    data.forEach(i => {
+        html += `<tr>
+            <td>${i.fruit}</td>
+            <td>${i.date}</td>
+            <td>${i.checkNum || "-"}</td>
+            <td>${i.produceDate || "-"}</td>
+            <td>${i.shelfLife || "-"}</td>
+            <td>${i.sugar || "-"}</td>
+            <td>${i.freshness || "-"}</td>
+            <td>${i.taste || "-"}</td>
+            <td>${i.fruitShape || "-"}</td>
+            <td>${i.peelWeight || "-"}</td>
+            <td>${i.netWeight || "-"}</td>
+            <td>${i.level || "-"}</td>
+            <td>${i.user || "-"}</td>
+        </tr>`;
+    });
+    html += "</table>";
+    printArea.innerHTML = html;
+    setTimeout(() => print(), 300);
+}
+</script>
+</body>
+</html>
